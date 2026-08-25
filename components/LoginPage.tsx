@@ -1,6 +1,37 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
+import backgroundPhoto1 from '../pictures/background/IMG_2544.jpg'
+import backgroundPhoto2 from '../pictures/background/IMG_2688.jpg'
+import backgroundPhoto3 from '../pictures/background/IMG_2771.jpg'
+import backgroundPhoto4 from '../pictures/background/IMG_2940.jpg'
+import backgroundPhoto5 from '../pictures/background/IMG_3101.jpg'
+import backgroundPhoto6 from '../pictures/background/IMG_3131.jpg'
+import backgroundPhoto7 from '../pictures/background/IMG_3258.jpg'
+import backgroundPhoto8 from '../pictures/background/IMG_5814.jpg'
+import backgroundPhoto9 from '../pictures/background/IMG_6081.jpg'
+import backgroundPhoto10 from '../pictures/background/IMG_6394.jpg'
+import backgroundPhoto11 from '../pictures/background/IMG_6426.jpg'
+import backgroundPhoto12 from '../pictures/background/IMG_6762.jpg'
+import backgroundPhoto13 from '../pictures/background/IMG_9572.jpg'
+import backgroundPhoto14 from '../pictures/background/fda9ac68-91b0-4439-8ff9-920aa012f206.jpg'
+
+const loginBackgroundPhotos = [
+  backgroundPhoto1,
+  backgroundPhoto2,
+  backgroundPhoto3,
+  backgroundPhoto4,
+  backgroundPhoto5,
+  backgroundPhoto6,
+  backgroundPhoto7,
+  backgroundPhoto8,
+  backgroundPhoto9,
+  backgroundPhoto10,
+  backgroundPhoto11,
+  backgroundPhoto12,
+  backgroundPhoto13,
+  backgroundPhoto14,
+]
 
 function LoginPage() {
   const [email, setEmail] = useState('')
@@ -28,12 +59,17 @@ function LoginPage() {
 
   return (
     <main className="login-page">
+      <div className="login-background-polaroids" aria-hidden="true">
+        {loginBackgroundPhotos.map((photo) => (
+          <figure className="login-polaroid" key={photo}>
+            <img src={photo} alt="" />
+          </figure>
+        ))}
+      </div>
+
       <form className="login-panel" onSubmit={handleSubmit}>
         <div className="login-heading">
-          <p className="login-mark" aria-hidden="true">
-            M
-          </p>
-          <h1>Mémoire</h1>
+          <h1>mémoire</h1>
           <p>Our memories, in one place.</p>
         </div>
 

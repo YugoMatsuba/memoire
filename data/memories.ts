@@ -1,10 +1,10 @@
 import samplePhoto from '../assets/hero.png'
-import tokyoPhoto1 from '../tokyo_1.jpg'
-import tokyoPhoto2 from '../tokyo_2.jpg'
-import tokyoPhoto3 from '../tokyo_3.jpg'
-import tokyoPhoto4 from '../tokyo_4.jpg'
-import tokyoPhoto5 from '../tokyo_5.jpg'
-import tokyoPhoto6 from '../tokyo_6.jpg'
+import tokyoPhoto1 from '../pictures/cities/tokyo/tokyo_1.jpg'
+import tokyoPhoto2 from '../pictures/cities/tokyo/tokyo_2.jpg'
+import tokyoPhoto3 from '../pictures/cities/tokyo/tokyo_3.jpg'
+import tokyoPhoto4 from '../pictures/cities/tokyo/tokyo_4.jpg'
+import tokyoPhoto5 from '../pictures/cities/tokyo/tokyo_5.jpg'
+import tokyoPhoto6 from '../pictures/cities/tokyo/tokyo_6.jpg'
 
 export type Memory = {
   id: string
