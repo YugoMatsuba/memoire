@@ -465,6 +465,7 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
     memory: Memory,
     description: string,
     files: File[],
+    picturesToDelete: Picture[],
   ) {
     if (!coupleId) {
       throw new Error('No couple workspace is connected to this account.')
@@ -483,8 +484,12 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
     }
 
     const photos = await uploadPlacePictures(memory.id, files)
+    await deletePlacePictures(memory.id, picturesToDelete)
     const updatedMemory = placeRowToMemory(data as PlaceRow, [
-      ...memory.photos,
+      ...memory.photos.filter(
+        (photo) =>
+          !picturesToDelete.some((picture) => picture.id === photo.id),
+      ),
       ...photos,
     ])
 
@@ -496,43 +501,36 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
     setSelectedMemory(updatedMemory)
   }
 
-  async function handleDeletePicture(memory: Memory, picture: Picture) {
+  async function deletePlacePictures(placeId: string, pictures: Picture[]) {
+    if (pictures.length === 0) {
+      return
+    }
+
+    const pictureIds = pictures.map((picture) => picture.id)
     const { data, error } = await supabase
       .from('pictures')
       .delete()
-      .eq('id', picture.id)
-      .eq('place_id', memory.id)
+      .eq('place_id', placeId)
+      .in('id', pictureIds)
       .select('id, storage_path')
 
     if (error) {
       throw new Error(error.message)
     }
 
-    if (!data || data.length !== 1) {
-      throw new Error('No matching picture was deleted.')
+    if (!data || data.length !== pictures.length) {
+      throw new Error('Some selected pictures were not deleted.')
     }
 
-    const deletedPicture = data[0] as Pick<PictureRow, 'id' | 'storage_path'>
+    const deletedPictures = data as Pick<PictureRow, 'id' | 'storage_path'>[]
 
     const { error: storageError } = await supabase.storage
       .from(STORAGE_BUCKET)
-      .remove([deletedPicture.storage_path])
+      .remove(deletedPictures.map((picture) => picture.storage_path))
 
     if (storageError) {
       throw new Error(storageError.message)
     }
-
-    const updatedMemory = {
-      ...memory,
-      photos: memory.photos.filter((photo) => photo.id !== picture.id),
-    }
-
-    setSavedPlaces((currentPlaces) =>
-      currentPlaces.map((place) =>
-        place.id === memory.id ? updatedMemory : place,
-      ),
-    )
-    setSelectedMemory(updatedMemory)
   }
 
   function handleSignOut() {
@@ -631,11 +629,13 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
           isDeleting={isDeletingPlace}
           onClose={() => setSelectedMemory(null)}
           onDelete={() => void handleDeletePlace(selectedMemory)}
-          onSave={(description, files) =>
-            handleSavePlaceMemory(selectedMemory, description, files)
-          }
-          onDeletePicture={(picture) =>
-            handleDeletePicture(selectedMemory, picture)
+          onSave={(description, files, picturesToDelete) =>
+            handleSavePlaceMemory(
+              selectedMemory,
+              description,
+              files,
+              picturesToDelete,
+            )
           }
         />
       ) : null}
@@ -824,8 +824,11 @@ type MemoryModalProps = {
   isDeleting: boolean
   onClose: () => void
   onDelete: () => void
-  onSave: (description: string, files: File[]) => Promise<void>
-  onDeletePicture: (picture: Picture) => Promise<void>
+  onSave: (
+    description: string,
+    files: File[],
+    picturesToDelete: Picture[],
+  ) => Promise<void>
 }
 
 function MemoryModal({
@@ -834,7 +837,6 @@ function MemoryModal({
   onClose,
   onDelete,
   onSave,
-  onDeletePicture,
 }: MemoryModalProps) {
   const [editedDescription, setEditedDescription] = useState(memory.description)
   const [editError, setEditError] = useState('')
@@ -842,7 +844,13 @@ function MemoryModal({
   const [isSavingEdit, setIsSavingEdit] = useState(false)
   const [pictureError, setPictureError] = useState('')
   const [pendingPictureFiles, setPendingPictureFiles] = useState<File[]>([])
-  const [deletingPictureId, setDeletingPictureId] = useState<string | null>(null)
+  const [pendingDeletedPictures, setPendingDeletedPictures] = useState<Picture[]>(
+    [],
+  )
+  const visiblePhotos = memory.photos.filter(
+    (photo) =>
+      !pendingDeletedPictures.some((picture) => picture.id === photo.id),
+  )
 
   async function handleSaveEdit() {
     setEditError('')
@@ -850,8 +858,13 @@ function MemoryModal({
     setIsSavingEdit(true)
 
     try {
-      await onSave(editedDescription, pendingPictureFiles)
+      await onSave(
+        editedDescription,
+        pendingPictureFiles,
+        pendingDeletedPictures,
+      )
       setPendingPictureFiles([])
+      setPendingDeletedPictures([])
       setIsEditing(false)
     } catch (error) {
       const message =
@@ -885,21 +898,15 @@ function MemoryModal({
     setEditError('')
     setPictureError('')
     setPendingPictureFiles([])
+    setPendingDeletedPictures([])
   }
 
-  async function handleDeletePicture(picture: Picture) {
+  function handleDeletePicture(picture: Picture) {
     setPictureError('')
-    setDeletingPictureId(picture.id)
-
-    try {
-      await onDeletePicture(picture)
-    } catch (error) {
-      setPictureError(
-        error instanceof Error ? error.message : 'Could not delete picture.',
-      )
-    } finally {
-      setDeletingPictureId(null)
-    }
+    setPendingDeletedPictures((currentPictures) => [
+      ...currentPictures,
+      picture,
+    ])
   }
 
   return (
@@ -985,9 +992,10 @@ function MemoryModal({
             onChange={handlePictureInputChange}
             disabled={isSavingEdit}
           />
-          {pendingPictureFiles.length > 0 ? (
+          {pendingPictureFiles.length > 0 || pendingDeletedPictures.length > 0 ? (
             <span className="pending-picture-count">
-              {pendingPictureFiles.length} pending
+              {pendingPictureFiles.length} added,{' '}
+              {pendingDeletedPictures.length} removed
             </span>
           ) : null}
         </div>
@@ -996,19 +1004,19 @@ function MemoryModal({
       {pictureError ? <p className="place-form-error">{pictureError}</p> : null}
 
       <div className="polaroid-stack">
-        {memory.photos.length > 0 ? (
-          memory.photos.map((photo) => (
+        {visiblePhotos.length > 0 ? (
+          visiblePhotos.map((photo) => (
             <figure className="polaroid-card" key={photo.id}>
               <img src={photo.url} alt={`${memory.city} memory`} />
               {isEditing ? (
                 <button
                   className="delete-picture-button"
                   type="button"
-                  onClick={() => void handleDeletePicture(photo)}
-                  disabled={deletingPictureId === photo.id}
+                  onClick={() => handleDeletePicture(photo)}
+                  disabled={isSavingEdit}
                   aria-label={`Delete ${memory.city} picture`}
                 >
-                  {deletingPictureId === photo.id ? 'Deleting...' : 'Delete'}
+                  Delete
                 </button>
               ) : null}
             </figure>
