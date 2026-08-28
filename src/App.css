@@ -954,18 +954,18 @@
   }
 
   .login-panel {
-    width: min(100%, 280px);
-    padding: 20px 16px 18px;
-    border-radius: 14px;
-    gap: 12px;
+    width: min(100%, 260px);
+    padding: 18px 14px 16px;
+    border-radius: 12px;
+    gap: 10px;
   }
 
   .login-heading h1 {
-    font-size: 32px;
+    font-size: 30px;
   }
 
   .login-heading p:not(.login-mark) {
-    font-size: 13px;
+    font-size: 12px;
   }
 
   .login-field {
@@ -973,12 +973,12 @@
   }
 
   .login-field input {
-    min-height: 42px;
-    padding: 0 14px;
+    min-height: 38px;
+    padding: 0 12px;
   }
 
   .enter-button {
-    min-height: 44px;
+    min-height: 40px;
   }
 
   .logout-button {
