@@ -550,17 +550,6 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
 
   return (
     <main className="globe-page">
-      {!selectedMemory ? (
-        <button
-          className="logout-button"
-          type="button"
-          onClick={handleSignOut}
-          disabled={isSigningOut}
-        >
-          {isSigningOut ? 'Logging out...' : 'Log out'}
-        </button>
-      ) : null}
-
       <div className="place-toolbar">
         <button
           className="add-place-button"
@@ -597,6 +586,17 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
             </div>
           ) : null}
         </div>
+
+        {!selectedMemory ? (
+          <button
+            className="logout-button"
+            type="button"
+            onClick={handleSignOut}
+            disabled={isSigningOut}
+          >
+            {isSigningOut ? 'Logging out...' : 'Log out'}
+          </button>
+        ) : null}
       </div>
 
       <div className="place-status" aria-live="polite">

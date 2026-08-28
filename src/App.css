@@ -310,10 +310,6 @@
 }
 
 .logout-button {
-  position: fixed;
-  z-index: 20;
-  top: max(18px, env(safe-area-inset-top));
-  right: max(18px, env(safe-area-inset-right));
   min-height: 44px;
   padding: 0 16px;
   border: 1px solid rgba(255, 250, 240, 0.16);
@@ -339,11 +335,13 @@
 
 .place-toolbar {
   position: fixed;
-  z-index: 5;
-  top: 18px;
-  left: 18px;
+  z-index: 20;
+  top: max(18px, env(safe-area-inset-top));
+  left: max(18px, env(safe-area-inset-left));
+  right: max(18px, env(safe-area-inset-right));
   display: flex;
   align-items: flex-start;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -967,7 +965,7 @@
   }
 
   .place-toolbar {
-    top: 18px;
+    top: max(18px, env(safe-area-inset-top));
     left: 18px;
     right: 18px;
   }
