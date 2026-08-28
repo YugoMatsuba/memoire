@@ -550,7 +550,7 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
 
   return (
     <main className="globe-page">
-      {!selectedMemory ? (
+      {!selectedMemory && !isPlaceFormOpen ? (
         <div className="place-toolbar">
           <button
             className="add-place-button"
