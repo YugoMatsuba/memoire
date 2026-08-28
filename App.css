@@ -446,7 +446,8 @@
   text-align: left;
   transform: translate(-50%, -50%);
   backdrop-filter: blur(18px);
-  overflow: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .place-form-modal {
@@ -588,6 +589,12 @@
   padding: 0 14px;
 }
 
+.place-field input[type='file'] {
+  min-height: auto;
+  padding: 12px 14px;
+  cursor: pointer;
+}
+
 .place-field textarea {
   min-height: 118px;
   padding: 12px 14px;
@@ -615,6 +622,12 @@
 .place-form-error {
   margin: -6px 0 0;
   color: #ffb097;
+  font-size: 13px;
+}
+
+.selected-picture-count {
+  margin: -8px 0 0;
+  color: rgba(255, 250, 240, 0.56);
   font-size: 13px;
 }
 
@@ -669,24 +682,61 @@
   font-size: 12px;
 }
 
+.picture-toolbar {
+  display: flex;
+  justify-content: flex-start;
+  padding: 0 0 14px;
+}
+
+.picture-toolbar input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.picture-upload-button {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 250, 240, 0.16);
+  border-radius: 999px;
+  color: rgba(255, 250, 240, 0.76);
+  background: rgba(255, 250, 240, 0.08);
+  font: 12px/1 var(--sans);
+  cursor: pointer;
+}
+
+.picture-upload-button:hover {
+  color: #fffaf0;
+  border-color: rgba(255, 250, 240, 0.34);
+}
+
+.pending-picture-count {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 10px;
+  color: rgba(255, 250, 240, 0.62);
+  font: 12px/1 var(--sans);
+}
+
 .polaroid-stack {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
   padding: 4px 0 20px;
 }
 
 .polaroid-card {
+  position: relative;
   margin: 0;
   padding: 10px 10px 34px;
   border-radius: 5px;
   background: #fffaf0;
   box-shadow: 0 14px 28px rgba(0, 0, 0, 0.32);
-  transform: rotate(-2deg);
-}
-
-.polaroid-card:nth-child(even) {
-  transform: rotate(2deg);
 }
 
 .polaroid-card img {
@@ -695,6 +745,29 @@
   display: block;
   border-radius: 2px;
   object-fit: cover;
+}
+
+.delete-picture-button {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid rgba(132, 34, 19, 0.22);
+  border-radius: 999px;
+  color: #842213;
+  background: rgba(255, 250, 240, 0.82);
+  font: 11px/1 var(--sans);
+  cursor: pointer;
+}
+
+.delete-picture-button:hover:not(:disabled) {
+  background: #fffaf0;
+}
+
+.delete-picture-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
 }
 
 .empty-place-photos {
@@ -901,13 +974,17 @@
   }
 
   .polaroid-stack {
-    grid-template-columns: 1fr;
-    max-height: 58svh;
-    overflow-y: auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
   }
 
   .polaroid-card {
-    max-width: 320px;
+    padding: 7px 7px 26px;
+  }
+
+  .delete-picture-button {
+    right: 7px;
+    bottom: 6px;
   }
 }
 

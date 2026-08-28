@@ -1,17 +1,34 @@
 import { useEffect, useRef, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import Globe from 'react-globe.gl'
 import type { GlobeMethods } from 'react-globe.gl'
 import LoginPage from './components/LoginPage'
-import type { Memory } from './data/memories'
 import { supabase } from './lib/supabase'
 import './App.css'
 
 const INITIAL_GLOBE_VIEW = { lat: -18, lng: 138, altitude: 2.15 }
 const GEOCODING_ENDPOINT = 'https://nominatim.openstreetmap.org/search'
+const STORAGE_BUCKET = 'Pictures'
+const PICTURE_URL_EXPIRES_IN_SECONDS = 60 * 60 * 24
 
 type CoupleId = string | number
+
+type Picture = {
+  id: string
+  placeId: string
+  storagePath: string
+  url: string
+}
+
+type Memory = {
+  id: string
+  city: string
+  lat: number
+  lng: number
+  photos: Picture[]
+  description: string
+}
 
 type PlaceRow = {
   place_id: string | number
@@ -22,6 +39,12 @@ type PlaceRow = {
   memory: string | null
 }
 
+type PictureRow = {
+  id: string | number
+  place_id: string | number
+  storage_path: string
+}
+
 type GeocodingResult = {
   place_id: number
   lat: string
@@ -30,15 +53,53 @@ type GeocodingResult = {
   type: string
 }
 
-function placeRowToMemory(row: PlaceRow): Memory {
+async function getPictureUrl(storagePath: string) {
+  const { data, error } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .createSignedUrl(storagePath, PICTURE_URL_EXPIRES_IN_SECONDS)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data.signedUrl
+}
+
+async function pictureRowToPhoto(row: PictureRow): Promise<Picture> {
+  return {
+    id: String(row.id),
+    placeId: String(row.place_id),
+    storagePath: row.storage_path,
+    url: await getPictureUrl(row.storage_path),
+  }
+}
+
+function placeRowToMemory(row: PlaceRow, photos: Picture[] = []): Memory {
   return {
     id: String(row.place_id),
     city: row.name,
     lat: row.lat,
     lng: row.long,
-    photos: [],
+    photos,
     description: row.memory ?? '',
   }
+}
+
+function getStoragePath(coupleId: CoupleId, placeId: string, file: File) {
+  const safeFileName = file.name.replace(/[^a-zA-Z0-9. -]/g, '-')
+
+  return `couples/${coupleId}/places/${placeId}/${crypto.randomUUID()}-${safeFileName}`
+}
+
+function clearSupabaseAuthStorage() {
+  const storageKeys = Object.keys(localStorage).filter(
+    (key) => key.startsWith('sb-') && key.endsWith('-auth-token'),
+  )
+
+  storageKeys.forEach((key) => {
+    localStorage.removeItem(key)
+    sessionStorage.removeItem(key)
+  })
 }
 
 function App() {
@@ -70,6 +131,13 @@ function App() {
     }
   }, [])
 
+  function handleSignOut() {
+    clearSupabaseAuthStorage()
+    setSession(null)
+
+    void supabase.auth.signOut({ scope: 'local' })
+  }
+
   if (isCheckingSession) {
     return (
       <main className="auth-loading" aria-label="Loading Mémoire">
@@ -82,10 +150,14 @@ function App() {
     return <LoginPage />
   }
 
-  return <MemoireApp />
+  return <MemoireApp onSignOut={handleSignOut} />
 }
 
-function MemoireApp() {
+type MemoireAppProps = {
+  onSignOut: () => void
+}
+
+function MemoireApp({ onSignOut }: MemoireAppProps) {
   const globeRef = useRef<GlobeMethods | undefined>(undefined)
   const [coupleId, setCoupleId] = useState<CoupleId | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -94,6 +166,7 @@ function MemoireApp() {
   const [isPlaceFormOpen, setIsPlaceFormOpen] = useState(false)
   const [placeSearch, setPlaceSearch] = useState('')
   const [isDeletingPlace, setIsDeletingPlace] = useState(false)
+  const [isSigningOut, setIsSigningOut] = useState(false)
   const [placeError, setPlaceError] = useState('')
   const [isLoadingPlaces, setIsLoadingPlaces] = useState(true)
   const [viewport, setViewport] = useState({
@@ -173,7 +246,48 @@ function MemoireApp() {
         return
       }
 
-      setSavedPlaces((data ?? []).map((row) => placeRowToMemory(row as PlaceRow)))
+      const placeRows = (data ?? []) as PlaceRow[]
+      const placeIds = placeRows.map((row) => String(row.place_id))
+      const picturesByPlaceId = new Map<string, Picture[]>()
+
+      if (placeIds.length > 0) {
+        const { data: pictureData, error: pictureError } = await supabase
+          .from('pictures')
+          .select('id, place_id, storage_path')
+          .in('place_id', placeIds)
+          .order('created_at', { ascending: true })
+
+        if (!isMounted) {
+          return
+        }
+
+        if (pictureError) {
+          setPlaceError('Could not load saved pictures.')
+          setIsLoadingPlaces(false)
+          return
+        }
+
+        const pictureRows = (pictureData ?? []) as PictureRow[]
+
+        const photos = await Promise.all(
+          pictureRows.map((pictureRow) => pictureRowToPhoto(pictureRow)),
+        )
+
+        photos.forEach((photo) => {
+          const placePhotos = picturesByPlaceId.get(photo.placeId) ?? []
+
+          picturesByPlaceId.set(photo.placeId, [...placePhotos, photo])
+        })
+      }
+
+      setSavedPlaces(
+        placeRows.map((row) =>
+          placeRowToMemory(
+            row,
+            picturesByPlaceId.get(String(row.place_id)) ?? [],
+          ),
+        ),
+      )
       setIsLoadingPlaces(false)
     }
 
@@ -203,6 +317,7 @@ function MemoireApp() {
     name: string
     memory: string
     geocodingResult: GeocodingResult
+    files: File[]
   }) {
     if (!coupleId) {
       throw new Error('No couple workspace is connected to this account.')
@@ -233,13 +348,53 @@ function MemoireApp() {
     }
 
     const newMemory = placeRowToMemory(data as PlaceRow)
+    const photos = await uploadPlacePictures(newMemory.id, input.files)
+    const memoryWithPhotos = { ...newMemory, photos }
 
-    setSavedPlaces((currentPlaces) => [...currentPlaces, newMemory])
-    setSelectedMemory(newMemory)
+    setSavedPlaces((currentPlaces) => [...currentPlaces, memoryWithPhotos])
+    setSelectedMemory(memoryWithPhotos)
     globeRef.current?.pointOfView(
-      { lat: newMemory.lat, lng: newMemory.lng, altitude: 1.7 },
+      { lat: memoryWithPhotos.lat, lng: memoryWithPhotos.lng, altitude: 1.7 },
       900,
     )
+  }
+
+  async function uploadPlacePictures(placeId: string, files: File[]) {
+    if (!coupleId || files.length === 0) {
+      return []
+    }
+
+    const insertedPhotos: Picture[] = []
+
+    for (const file of files) {
+      const storagePath = getStoragePath(coupleId, placeId, file)
+      const { error: uploadError } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .upload(storagePath, file, {
+          contentType: file.type,
+        })
+
+      if (uploadError) {
+        throw new Error(uploadError.message)
+      }
+
+      const { data, error } = await supabase
+        .from('pictures')
+        .insert({
+          place_id: placeId,
+          storage_path: storagePath,
+        })
+        .select('id, place_id, storage_path')
+        .single()
+
+      if (error) {
+        throw new Error(error.message)
+      }
+
+      insertedPhotos.push(await pictureRowToPhoto(data as PictureRow))
+    }
+
+    return insertedPhotos
   }
 
   async function handleDeletePlace(memory: Memory) {
@@ -276,7 +431,11 @@ function MemoireApp() {
     setSelectedMemory(null)
   }
 
-  async function handleUpdatePlaceMemory(memory: Memory, description: string) {
+  async function handleSavePlaceMemory(
+    memory: Memory,
+    description: string,
+    files: File[],
+  ) {
     if (!coupleId) {
       throw new Error('No couple workspace is connected to this account.')
     }
@@ -293,7 +452,11 @@ function MemoireApp() {
       throw new Error(error.message)
     }
 
-    const updatedMemory = placeRowToMemory(data as PlaceRow)
+    const photos = await uploadPlacePictures(memory.id, files)
+    const updatedMemory = placeRowToMemory(data as PlaceRow, [
+      ...memory.photos,
+      ...photos,
+    ])
 
     setSavedPlaces((currentPlaces) =>
       currentPlaces.map((place) =>
@@ -301,6 +464,49 @@ function MemoireApp() {
       ),
     )
     setSelectedMemory(updatedMemory)
+  }
+
+  async function handleDeletePicture(memory: Memory, picture: Picture) {
+    const { data, error } = await supabase
+      .from('pictures')
+      .delete()
+      .eq('id', picture.id)
+      .eq('place_id', memory.id)
+      .select('id')
+
+    if (error) {
+      throw new Error(error.message)
+    }
+
+    if (!data || data.length !== 1) {
+      throw new Error('No matching picture was deleted.')
+    }
+
+    const { error: storageError } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .remove([picture.storagePath])
+
+    if (storageError) {
+      throw new Error(storageError.message)
+    }
+
+    const updatedMemory = {
+      ...memory,
+      photos: memory.photos.filter((photo) => photo.id !== picture.id),
+    }
+
+    setSavedPlaces((currentPlaces) =>
+      currentPlaces.map((place) =>
+        place.id === memory.id ? updatedMemory : place,
+      ),
+    )
+    setSelectedMemory(updatedMemory)
+  }
+
+  function handleSignOut() {
+    setPlaceError('')
+    setIsSigningOut(true)
+    onSignOut()
   }
 
   function handleSelectSearchedPlace(memory: Memory) {
@@ -317,9 +523,10 @@ function MemoireApp() {
       <button
         className="logout-button"
         type="button"
-        onClick={() => void supabase.auth.signOut()}
+        onClick={handleSignOut}
+        disabled={isSigningOut}
       >
-        Log out
+        {isSigningOut ? 'Logging out...' : 'Log out'}
       </button>
 
       <div className="place-toolbar">
@@ -392,8 +599,11 @@ function MemoireApp() {
           isDeleting={isDeletingPlace}
           onClose={() => setSelectedMemory(null)}
           onDelete={() => void handleDeletePlace(selectedMemory)}
-          onUpdateMemory={(description) =>
-            handleUpdatePlaceMemory(selectedMemory, description)
+          onSave={(description, files) =>
+            handleSavePlaceMemory(selectedMemory, description, files)
+          }
+          onDeletePicture={(picture) =>
+            handleDeletePicture(selectedMemory, picture)
           }
         />
       ) : null}
@@ -413,6 +623,7 @@ type PlaceFormModalProps = {
     name: string
     memory: string
     geocodingResult: GeocodingResult
+    files: File[]
   }) => Promise<void>
   onClose: () => void
 }
@@ -420,6 +631,7 @@ type PlaceFormModalProps = {
 function PlaceFormModal({ onCreate, onClose }: PlaceFormModalProps) {
   const [name, setName] = useState('')
   const [memory, setMemory] = useState('')
+  const [files, setFiles] = useState<File[]>([])
   const [geocodingResults, setGeocodingResults] = useState<GeocodingResult[]>([])
   const [error, setError] = useState('')
   const [isSearching, setIsSearching] = useState(false)
@@ -467,7 +679,7 @@ function PlaceFormModal({ onCreate, onClose }: PlaceFormModalProps) {
     setIsSaving(true)
 
     try {
-      await onCreate({ name, memory, geocodingResult })
+      await onCreate({ name, memory, geocodingResult, files })
       onClose()
     } catch (createError) {
       setError(
@@ -522,6 +734,26 @@ function PlaceFormModal({ onCreate, onClose }: PlaceFormModalProps) {
           />
         </label>
 
+        <label className="place-field" htmlFor="place-pictures">
+          <span>Pictures</span>
+          <input
+            id="place-pictures"
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={(event) =>
+              setFiles(Array.from(event.target.files ?? []))
+            }
+            disabled={isSearching || isSaving}
+          />
+        </label>
+
+        {files.length > 0 ? (
+          <p className="selected-picture-count">
+            {files.length} picture{files.length === 1 ? '' : 's'} selected
+          </p>
+        ) : null}
+
         {error ? <p className="place-form-error">{error}</p> : null}
 
         <button
@@ -560,7 +792,8 @@ type MemoryModalProps = {
   isDeleting: boolean
   onClose: () => void
   onDelete: () => void
-  onUpdateMemory: (description: string) => Promise<void>
+  onSave: (description: string, files: File[]) => Promise<void>
+  onDeletePicture: (picture: Picture) => Promise<void>
 }
 
 function MemoryModal({
@@ -568,26 +801,72 @@ function MemoryModal({
   isDeleting,
   onClose,
   onDelete,
-  onUpdateMemory,
+  onSave,
+  onDeletePicture,
 }: MemoryModalProps) {
   const [editedDescription, setEditedDescription] = useState(memory.description)
   const [editError, setEditError] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const [isSavingEdit, setIsSavingEdit] = useState(false)
+  const [pictureError, setPictureError] = useState('')
+  const [pendingPictureFiles, setPendingPictureFiles] = useState<File[]>([])
+  const [deletingPictureId, setDeletingPictureId] = useState<string | null>(null)
 
   async function handleSaveEdit() {
     setEditError('')
+    setPictureError('')
     setIsSavingEdit(true)
 
     try {
-      await onUpdateMemory(editedDescription)
+      await onSave(editedDescription, pendingPictureFiles)
+      setPendingPictureFiles([])
       setIsEditing(false)
     } catch (error) {
-      setEditError(
-        error instanceof Error ? error.message : 'Could not update this memory.',
-      )
+      const message =
+        error instanceof Error ? error.message : 'Could not save this memory.'
+
+      setEditError(message)
+      setPictureError(message)
     } finally {
       setIsSavingEdit(false)
+    }
+  }
+
+  function handlePictureInputChange(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? [])
+
+    if (files.length === 0) {
+      return
+    }
+
+    setPictureError('')
+    setPendingPictureFiles((currentFiles) => [
+      ...currentFiles,
+      ...files,
+    ])
+    event.target.value = ''
+  }
+
+  function handleCancelEdit() {
+    setEditedDescription(memory.description)
+    setIsEditing(false)
+    setEditError('')
+    setPictureError('')
+    setPendingPictureFiles([])
+  }
+
+  async function handleDeletePicture(picture: Picture) {
+    setPictureError('')
+    setDeletingPictureId(picture.id)
+
+    try {
+      await onDeletePicture(picture)
+    } catch (error) {
+      setPictureError(
+        error instanceof Error ? error.message : 'Could not delete picture.',
+      )
+    } finally {
+      setDeletingPictureId(null)
     }
   }
 
@@ -604,11 +883,7 @@ function MemoryModal({
               <button
                 className="memory-close"
                 type="button"
-                onClick={() => {
-                  setEditedDescription(memory.description)
-                  setIsEditing(false)
-                  setEditError('')
-                }}
+                onClick={handleCancelEdit}
                 disabled={isSavingEdit}
               >
                 Cancel
@@ -665,11 +940,45 @@ function MemoryModal({
         {editError ? <p className="place-form-error">{editError}</p> : null}
       </div>
 
+      {isEditing ? (
+        <div className="picture-toolbar">
+          <label className="picture-upload-button" htmlFor={`pictures-${memory.id}`}>
+            Add pictures
+          </label>
+          <input
+            id={`pictures-${memory.id}`}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handlePictureInputChange}
+            disabled={isSavingEdit}
+          />
+          {pendingPictureFiles.length > 0 ? (
+            <span className="pending-picture-count">
+              {pendingPictureFiles.length} pending
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
+      {pictureError ? <p className="place-form-error">{pictureError}</p> : null}
+
       <div className="polaroid-stack">
         {memory.photos.length > 0 ? (
-          memory.photos.map((photo, index) => (
-            <figure className="polaroid-card" key={`${memory.id}-${index}`}>
-              <img src={photo} alt={`${memory.city} memory`} />
+          memory.photos.map((photo) => (
+            <figure className="polaroid-card" key={photo.id}>
+              <img src={photo.url} alt={`${memory.city} memory`} />
+              {isEditing ? (
+                <button
+                  className="delete-picture-button"
+                  type="button"
+                  onClick={() => void handleDeletePicture(photo)}
+                  disabled={deletingPictureId === photo.id}
+                  aria-label={`Delete ${memory.city} picture`}
+                >
+                  {deletingPictureId === photo.id ? 'Deleting...' : 'Delete'}
+                </button>
+              ) : null}
             </figure>
           ))
         ) : (
