@@ -4,7 +4,7 @@ import type { Session } from '@supabase/supabase-js'
 import Globe from 'react-globe.gl'
 import type { GlobeMethods } from 'react-globe.gl'
 import LoginPage from './components/LoginPage'
-import { supabase } from './lib/supabase'
+import { hasSupabaseConfig, invalidSupabaseEnv, supabase } from './lib/supabase'
 import './App.css'
 
 const INITIAL_GLOBE_VIEW = { lat: -18, lng: 138, altitude: 2.15 }
@@ -41,7 +41,6 @@ type PlaceRow = {
 
 type PictureRow = {
   id: string | number
-  couple_id: CoupleId
   place_id: string | number
   storage_path: string
 }
@@ -105,9 +104,13 @@ function clearSupabaseAuthStorage() {
 
 function App() {
   const [session, setSession] = useState<Session | null>(null)
-  const [isCheckingSession, setIsCheckingSession] = useState(true)
+  const [isCheckingSession, setIsCheckingSession] = useState(hasSupabaseConfig)
 
   useEffect(() => {
+    if (!hasSupabaseConfig) {
+      return
+    }
+
     let isMounted = true
 
     supabase.auth.getSession().then(({ data }) => {
@@ -147,11 +150,31 @@ function App() {
     )
   }
 
+  if (!hasSupabaseConfig) {
+    return <MissingSupabaseConfigPage />
+  }
+
   if (!session) {
     return <LoginPage />
   }
 
   return <MemoireApp onSignOut={handleSignOut} />
+}
+
+function MissingSupabaseConfigPage() {
+  return (
+    <main className="auth-config-error">
+      <section>
+        <h1>Missing Supabase config</h1>
+        <p>Fix these Vercel Config environment variables, then redeploy:</p>
+        <ul>
+          {invalidSupabaseEnv.map((key) => (
+            <li key={key}>{key}</li>
+          ))}
+        </ul>
+      </section>
+    </main>
+  )
 }
 
 type MemoireAppProps = {
@@ -254,8 +277,7 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
       if (placeIds.length > 0) {
         const { data: pictureData, error: pictureError } = await supabase
           .from('pictures')
-          .select('id, couple_id, place_id, storage_path')
-          .eq('couple_id', membership.couple_id)
+          .select('id, place_id, storage_path')
           .in('place_id', placeIds)
           .order('created_at', { ascending: true })
 
@@ -387,12 +409,11 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
       const { data, error } = await supabase
         .from('pictures')
         .insert({
-          couple_id: coupleId,
           place_id: placeId,
           storage_path: storagePath,
           created_by: currentUserId,
         })
-        .select('id, couple_id, place_id, storage_path')
+        .select('id, place_id, storage_path')
         .single()
 
       if (error) {
@@ -475,15 +496,10 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
   }
 
   async function handleDeletePicture(memory: Memory, picture: Picture) {
-    if (!coupleId) {
-      throw new Error('No couple workspace is connected to this account.')
-    }
-
     const { data, error } = await supabase
       .from('pictures')
       .delete()
       .eq('id', picture.id)
-      .eq('couple_id', coupleId)
       .eq('place_id', memory.id)
       .select('id, storage_path')
 
