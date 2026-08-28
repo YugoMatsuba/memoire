@@ -41,6 +41,7 @@ type PlaceRow = {
 
 type PictureRow = {
   id: string | number
+  couple_id: CoupleId
   place_id: string | number
   storage_path: string
 }
@@ -253,7 +254,8 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
       if (placeIds.length > 0) {
         const { data: pictureData, error: pictureError } = await supabase
           .from('pictures')
-          .select('id, place_id, storage_path')
+          .select('id, couple_id, place_id, storage_path')
+          .eq('couple_id', membership.couple_id)
           .in('place_id', placeIds)
           .order('created_at', { ascending: true })
 
@@ -364,6 +366,10 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
       return []
     }
 
+    if (!currentUserId) {
+      throw new Error('Could not load the current user.')
+    }
+
     const insertedPhotos: Picture[] = []
 
     for (const file of files) {
@@ -381,10 +387,12 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
       const { data, error } = await supabase
         .from('pictures')
         .insert({
+          couple_id: coupleId,
           place_id: placeId,
           storage_path: storagePath,
+          created_by: currentUserId,
         })
-        .select('id, place_id, storage_path')
+        .select('id, couple_id, place_id, storage_path')
         .single()
 
       if (error) {
@@ -467,12 +475,17 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
   }
 
   async function handleDeletePicture(memory: Memory, picture: Picture) {
+    if (!coupleId) {
+      throw new Error('No couple workspace is connected to this account.')
+    }
+
     const { data, error } = await supabase
       .from('pictures')
       .delete()
       .eq('id', picture.id)
+      .eq('couple_id', coupleId)
       .eq('place_id', memory.id)
-      .select('id')
+      .select('id, storage_path')
 
     if (error) {
       throw new Error(error.message)
@@ -482,9 +495,11 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
       throw new Error('No matching picture was deleted.')
     }
 
+    const deletedPicture = data[0] as Pick<PictureRow, 'id' | 'storage_path'>
+
     const { error: storageError } = await supabase.storage
       .from(STORAGE_BUCKET)
-      .remove([picture.storagePath])
+      .remove([deletedPicture.storage_path])
 
     if (storageError) {
       throw new Error(storageError.message)
