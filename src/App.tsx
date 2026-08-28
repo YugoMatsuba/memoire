@@ -732,7 +732,6 @@ function PlaceFormModal({ onCreate, onClose }: PlaceFormModalProps) {
         <header className="memory-header">
           <div>
             <h2>Add place</h2>
-            <p className="memory-description">Search, choose the match, and save it.</p>
           </div>
 
           <button className="memory-close" type="button" onClick={onClose}>
