@@ -185,11 +185,11 @@
 .login-panel {
   position: relative;
   z-index: 2;
-  width: min(100%, 360px);
+  width: min(100%, 340px);
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  padding: 36px 30px 32px;
+  gap: 18px;
+  padding: 32px 26px 28px;
   border: 1px solid rgba(84, 74, 61, 0.12);
   border-radius: 22px;
   background: rgba(255, 253, 248, 0.78);
@@ -242,7 +242,7 @@
 
 .login-field label {
   color: var(--memoire-muted);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .login-field input {
@@ -254,6 +254,7 @@
   background: rgba(255, 255, 255, 0.82);
   color: var(--memoire-ink);
   font: inherit;
+  font-size: 15px;
   box-sizing: border-box;
   transition:
     border-color 0.2s ease,
@@ -954,10 +955,10 @@
   }
 
   .login-panel {
-    width: min(100%, 260px);
-    padding: 18px 14px 16px;
+    width: min(100%, 240px);
+    padding: 16px 12px 14px;
     border-radius: 12px;
-    gap: 10px;
+    gap: 9px;
   }
 
   .login-heading h1 {
@@ -969,12 +970,17 @@
   }
 
   .login-field {
-    gap: 6px;
+    gap: 5px;
+  }
+
+  .login-field label {
+    font-size: 11px;
   }
 
   .login-field input {
-    min-height: 38px;
-    padding: 0 12px;
+    min-height: 36px;
+    padding: 0 11px;
+    font-size: 14px;
   }
 
   .enter-button {
