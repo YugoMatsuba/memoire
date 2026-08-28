@@ -550,44 +550,44 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
 
   return (
     <main className="globe-page">
-      <div className="place-toolbar">
-        <button
-          className="add-place-button"
-          type="button"
-          onClick={() => setIsPlaceFormOpen(true)}
-        >
-          Add place
-        </button>
+      {!selectedMemory ? (
+        <div className="place-toolbar">
+          <button
+            className="add-place-button"
+            type="button"
+            onClick={() => setIsPlaceFormOpen(true)}
+          >
+            Add place
+          </button>
 
-        <div className="place-search">
-          <label className="place-search-field" htmlFor="place-search">
-            <span>Search place</span>
-            <input
-              id="place-search"
-              type="search"
-              value={placeSearch}
-              onChange={(event) => setPlaceSearch(event.target.value)}
-              placeholder="Search"
-            />
-          </label>
+          <div className="place-search">
+            <label className="place-search-field" htmlFor="place-search">
+              <span>Search place</span>
+              <input
+                id="place-search"
+                type="search"
+                value={placeSearch}
+                onChange={(event) => setPlaceSearch(event.target.value)}
+                placeholder="Search"
+              />
+            </label>
 
-          {matchingPlaces.length > 0 ? (
-            <div className="place-search-results">
-              {matchingPlaces.map((place) => (
-                <button
-                  className="place-search-result"
-                  type="button"
-                  key={place.id}
-                  onClick={() => handleSelectSearchedPlace(place)}
-                >
-                  {place.city}
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
+            {matchingPlaces.length > 0 ? (
+              <div className="place-search-results">
+                {matchingPlaces.map((place) => (
+                  <button
+                    className="place-search-result"
+                    type="button"
+                    key={place.id}
+                    onClick={() => handleSelectSearchedPlace(place)}
+                  >
+                    {place.city}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
 
-        {!selectedMemory ? (
           <button
             className="logout-button"
             type="button"
@@ -596,8 +596,8 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
           >
             {isSigningOut ? 'Logging out...' : 'Log out'}
           </button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       <div className="place-status" aria-live="polite">
         {isLoadingPlaces ? 'Loading saved places...' : placeError}

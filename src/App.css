@@ -340,7 +340,7 @@
   left: max(18px, env(safe-area-inset-left));
   right: max(18px, env(safe-area-inset-right));
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   flex-wrap: wrap;
   gap: 8px;
 }
@@ -375,7 +375,8 @@
 }
 
 .place-search {
-  width: 148px;
+  position: relative;
+  width: 112px;
 }
 
 .place-search-field {
@@ -409,9 +410,13 @@
 }
 
 .place-search-results {
+  position: absolute;
+  z-index: 1;
+  top: calc(100% + 6px);
+  left: 0;
+  width: min(260px, calc(100vw - 36px));
   display: grid;
   gap: 4px;
-  margin-top: 6px;
   padding: 6px;
   border: 1px solid rgba(255, 250, 240, 0.14);
   border-radius: 12px;
@@ -879,7 +884,7 @@
 
 @media (max-width: 520px) {
   .login-page {
-    padding: 20px;
+    padding: 16px;
   }
 
   .login-polaroid {
@@ -949,14 +954,31 @@
   }
 
   .login-panel {
-    width: min(100%, 340px);
-    padding: 28px 22px 26px;
-    border-radius: 18px;
-    gap: 18px;
+    width: min(100%, 300px);
+    padding: 22px 18px 20px;
+    border-radius: 14px;
+    gap: 14px;
   }
 
   .login-heading h1 {
-    font-size: 40px;
+    font-size: 34px;
+  }
+
+  .login-heading p:not(.login-mark) {
+    font-size: 13px;
+  }
+
+  .login-field {
+    gap: 6px;
+  }
+
+  .login-field input {
+    min-height: 42px;
+    padding: 0 14px;
+  }
+
+  .enter-button {
+    min-height: 44px;
   }
 
   .logout-button {
@@ -976,7 +998,7 @@
   }
 
   .place-search {
-    width: 120px;
+    width: 96px;
   }
 
   .place-search-field input {
