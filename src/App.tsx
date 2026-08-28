@@ -92,14 +92,18 @@ function getStoragePath(coupleId: CoupleId, placeId: string, file: File) {
 }
 
 function clearSupabaseAuthStorage() {
-  const storageKeys = Object.keys(localStorage).filter(
-    (key) => key.startsWith('sb-') && key.endsWith('-auth-token'),
-  )
+  try {
+    const storageKeys = Object.keys(localStorage).filter(
+      (key) => key.startsWith('sb-') && key.endsWith('-auth-token'),
+    )
 
-  storageKeys.forEach((key) => {
-    localStorage.removeItem(key)
-    sessionStorage.removeItem(key)
-  })
+    storageKeys.forEach((key) => {
+      localStorage.removeItem(key)
+      sessionStorage.removeItem(key)
+    })
+  } catch {
+    // Some mobile browsers can block storage access. Logout should still leave the app UI.
+  }
 }
 
 function App() {
@@ -136,10 +140,12 @@ function App() {
   }, [])
 
   function handleSignOut() {
-    clearSupabaseAuthStorage()
     setSession(null)
+    clearSupabaseAuthStorage()
 
-    void supabase.auth.signOut({ scope: 'local' })
+    void supabase.auth.signOut({ scope: 'local' }).catch(() => {
+      clearSupabaseAuthStorage()
+    })
   }
 
   if (isCheckingSession) {

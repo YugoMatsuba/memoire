@@ -311,17 +311,19 @@
 
 .logout-button {
   position: fixed;
-  z-index: 5;
-  top: 18px;
-  right: 18px;
-  min-height: 36px;
-  padding: 0 14px;
+  z-index: 20;
+  top: max(18px, env(safe-area-inset-top));
+  right: max(18px, env(safe-area-inset-right));
+  min-height: 44px;
+  padding: 0 16px;
   border: 1px solid rgba(255, 250, 240, 0.16);
   border-radius: 999px;
   color: rgba(255, 250, 240, 0.76);
   background: rgba(13, 12, 10, 0.38);
   font: 13px/1 var(--sans);
   cursor: pointer;
+  touch-action: manipulation;
+  pointer-events: auto;
   backdrop-filter: blur(18px);
   transition:
     color 0.2s ease,
@@ -960,8 +962,8 @@
   }
 
   .logout-button {
-    min-height: 34px;
-    padding: 0 12px;
+    min-height: 44px;
+    padding: 0 14px;
   }
 
   .place-toolbar {
