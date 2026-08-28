@@ -388,10 +388,6 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
       return []
     }
 
-    if (!currentUserId) {
-      throw new Error('Could not load the current user.')
-    }
-
     const insertedPhotos: Picture[] = []
 
     for (const file of files) {
@@ -411,7 +407,6 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
         .insert({
           place_id: placeId,
           storage_path: storagePath,
-          created_by: currentUserId,
         })
         .select('id, place_id, storage_path')
         .single()
