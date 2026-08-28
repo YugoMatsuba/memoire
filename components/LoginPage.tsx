@@ -70,7 +70,7 @@ function LoginPage() {
       <form className="login-panel" onSubmit={handleSubmit}>
         <div className="login-heading">
           <h1>mémoire</h1>
-          <p>Our memories, in one place.</p>
+          <p>A little world of us</p>
         </div>
 
         <div className="login-field">
@@ -103,7 +103,7 @@ function LoginPage() {
         {error ? <p className="login-error">{error}</p> : null}
 
         <button className="enter-button" type="submit" disabled={isLoading}>
-          {isLoading ? 'Opening...' : 'Enter Mémoire'}
+          {isLoading ? 'Opening...' : 'Login'}
         </button>
       </form>
     </main>

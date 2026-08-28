@@ -1,14 +1,45 @@
 import { useEffect, useRef, useState } from 'react'
+import type { FormEvent } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import Globe from 'react-globe.gl'
 import type { GlobeMethods } from 'react-globe.gl'
 import LoginPage from './components/LoginPage'
-import { memories } from './data/memories'
 import type { Memory } from './data/memories'
 import { supabase } from './lib/supabase'
 import './App.css'
 
 const INITIAL_GLOBE_VIEW = { lat: -18, lng: 138, altitude: 2.15 }
+const GEOCODING_ENDPOINT = 'https://nominatim.openstreetmap.org/search'
+
+type CoupleId = string | number
+
+type PlaceRow = {
+  place_id: string | number
+  couple_id: CoupleId
+  name: string
+  lat: number
+  long: number
+  memory: string | null
+}
+
+type GeocodingResult = {
+  place_id: number
+  lat: string
+  lon: string
+  display_name: string
+  type: string
+}
+
+function placeRowToMemory(row: PlaceRow): Memory {
+  return {
+    id: String(row.place_id),
+    city: row.name,
+    lat: row.lat,
+    lng: row.long,
+    photos: [],
+    description: row.memory ?? '',
+  }
+}
 
 function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -56,14 +87,101 @@ function App() {
 
 function MemoireApp() {
   const globeRef = useRef<GlobeMethods | undefined>(undefined)
+  const [coupleId, setCoupleId] = useState<CoupleId | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [savedPlaces, setSavedPlaces] = useState<Memory[]>([])
   const [selectedMemory, setSelectedMemory] = useState<Memory | null>(null)
+  const [isPlaceFormOpen, setIsPlaceFormOpen] = useState(false)
+  const [placeSearch, setPlaceSearch] = useState('')
+  const [isDeletingPlace, setIsDeletingPlace] = useState(false)
+  const [placeError, setPlaceError] = useState('')
+  const [isLoadingPlaces, setIsLoadingPlaces] = useState(true)
   const [viewport, setViewport] = useState({
     width: window.innerWidth,
     height: window.innerHeight,
   })
+  const trimmedPlaceSearch = placeSearch.trim().toLowerCase()
+  const matchingPlaces =
+    trimmedPlaceSearch.length > 0
+      ? savedPlaces
+          .filter((place) =>
+            place.city.toLowerCase().includes(trimmedPlaceSearch),
+          )
+          .slice(0, 5)
+      : []
 
   useEffect(() => {
     document.querySelectorAll('.map-pin').forEach((pin) => pin.remove())
+  }, [])
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadSavedPlaces() {
+      setPlaceError('')
+      setIsLoadingPlaces(true)
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser()
+
+      if (!isMounted) {
+        return
+      }
+
+      if (userError || !user) {
+        setPlaceError('Could not load the current user.')
+        setIsLoadingPlaces(false)
+        return
+      }
+
+      setCurrentUserId(user.id)
+
+      const { data: membership, error: membershipError } = await supabase
+        .from('couple_members')
+        .select('couple_id')
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle()
+
+      if (!isMounted) {
+        return
+      }
+
+      if (membershipError || !membership) {
+        setPlaceError('No couple workspace is connected to this account.')
+        setIsLoadingPlaces(false)
+        return
+      }
+
+      setCoupleId(membership.couple_id)
+
+      const { data, error } = await supabase
+        .from('places')
+        .select('place_id, couple_id, name, lat, long, memory')
+        .eq('couple_id', membership.couple_id)
+        .order('created_at', { ascending: true })
+
+      if (!isMounted) {
+        return
+      }
+
+      if (error) {
+        setPlaceError('Could not load saved places.')
+        setIsLoadingPlaces(false)
+        return
+      }
+
+      setSavedPlaces((data ?? []).map((row) => placeRowToMemory(row as PlaceRow)))
+      setIsLoadingPlaces(false)
+    }
+
+    void loadSavedPlaces()
+
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   useEffect(() => {
@@ -81,6 +199,119 @@ function MemoireApp() {
     }
   }, [])
 
+  async function handleCreatePlace(input: {
+    name: string
+    memory: string
+    geocodingResult: GeocodingResult
+  }) {
+    if (!coupleId) {
+      throw new Error('No couple workspace is connected to this account.')
+    }
+
+    if (!currentUserId) {
+      throw new Error('Could not load the current user.')
+    }
+
+    const placeName = input.name.trim()
+    const placeMemory = input.memory.trim()
+
+    const { data, error } = await supabase
+      .from('places')
+      .insert({
+        couple_id: coupleId,
+        name: placeName,
+        lat: Number(input.geocodingResult.lat),
+        long: Number(input.geocodingResult.lon),
+        memory: placeMemory,
+        created_by: currentUserId,
+      })
+      .select('place_id, couple_id, name, lat, long, memory')
+      .single()
+
+    if (error) {
+      throw new Error(error.message)
+    }
+
+    const newMemory = placeRowToMemory(data as PlaceRow)
+
+    setSavedPlaces((currentPlaces) => [...currentPlaces, newMemory])
+    setSelectedMemory(newMemory)
+    globeRef.current?.pointOfView(
+      { lat: newMemory.lat, lng: newMemory.lng, altitude: 1.7 },
+      900,
+    )
+  }
+
+  async function handleDeletePlace(memory: Memory) {
+    if (!coupleId) {
+      setPlaceError('No couple workspace is connected to this account.')
+      return
+    }
+
+    setPlaceError('')
+    setIsDeletingPlace(true)
+
+    const { data, error } = await supabase
+      .from('places')
+      .delete()
+      .eq('place_id', memory.id)
+      .eq('couple_id', coupleId)
+      .select('place_id')
+
+    setIsDeletingPlace(false)
+
+    if (error) {
+      setPlaceError(error.message)
+      return
+    }
+
+    if (!data || data.length !== 1) {
+      setPlaceError('No matching place was deleted.')
+      return
+    }
+
+    setSavedPlaces((currentPlaces) =>
+      currentPlaces.filter((place) => place.id !== memory.id),
+    )
+    setSelectedMemory(null)
+  }
+
+  async function handleUpdatePlaceMemory(memory: Memory, description: string) {
+    if (!coupleId) {
+      throw new Error('No couple workspace is connected to this account.')
+    }
+
+    const { data, error } = await supabase
+      .from('places')
+      .update({ memory: description.trim() })
+      .eq('place_id', memory.id)
+      .eq('couple_id', coupleId)
+      .select('place_id, couple_id, name, lat, long, memory')
+      .single()
+
+    if (error) {
+      throw new Error(error.message)
+    }
+
+    const updatedMemory = placeRowToMemory(data as PlaceRow)
+
+    setSavedPlaces((currentPlaces) =>
+      currentPlaces.map((place) =>
+        place.id === updatedMemory.id ? updatedMemory : place,
+      ),
+    )
+    setSelectedMemory(updatedMemory)
+  }
+
+  function handleSelectSearchedPlace(memory: Memory) {
+    setSelectedMemory(memory)
+    setPlaceSearch('')
+    globeRef.current?.pointOfView(
+      { lat: memory.lat, lng: memory.lng, altitude: 1.7 },
+      900,
+    )
+  }
+
   return (
     <main className="globe-page">
       <button
@@ -91,6 +322,48 @@ function MemoireApp() {
         Log out
       </button>
 
+      <div className="place-toolbar">
+        <button
+          className="add-place-button"
+          type="button"
+          onClick={() => setIsPlaceFormOpen(true)}
+        >
+          Add place
+        </button>
+
+        <div className="place-search">
+          <label className="place-search-field" htmlFor="place-search">
+            <span>Search place</span>
+            <input
+              id="place-search"
+              type="search"
+              value={placeSearch}
+              onChange={(event) => setPlaceSearch(event.target.value)}
+              placeholder="Search"
+            />
+          </label>
+
+          {matchingPlaces.length > 0 ? (
+            <div className="place-search-results">
+              {matchingPlaces.map((place) => (
+                <button
+                  className="place-search-result"
+                  type="button"
+                  key={place.id}
+                  onClick={() => handleSelectSearchedPlace(place)}
+                >
+                  {place.city}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="place-status" aria-live="polite">
+        {isLoadingPlaces ? 'Loading saved places...' : placeError}
+      </div>
+
       <Globe
         key="memoire-globe-front-map-pins"
         ref={globeRef}
@@ -99,11 +372,11 @@ function MemoireApp() {
         onGlobeReady={() => {
           globeRef.current?.pointOfView(INITIAL_GLOBE_VIEW, 0)
         }}
-        pointsData={memories}
+        pointsData={savedPlaces}
         pointLat="lat"
         pointLng="lng"
-        pointAltitude={0.02}
-        pointRadius={0.5}
+        pointAltitude={0.008}
+        pointRadius={0.15}
         pointResolution={20}
         pointColor={() => '#ffd84d'}
         pointLabel="city"
@@ -116,42 +389,292 @@ function MemoireApp() {
       {selectedMemory ? (
         <MemoryModal
           memory={selectedMemory}
+          isDeleting={isDeletingPlace}
           onClose={() => setSelectedMemory(null)}
+          onDelete={() => void handleDeletePlace(selectedMemory)}
+          onUpdateMemory={(description) =>
+            handleUpdatePlaceMemory(selectedMemory, description)
+          }
+        />
+      ) : null}
+
+      {isPlaceFormOpen ? (
+        <PlaceFormModal
+          onCreate={handleCreatePlace}
+          onClose={() => setIsPlaceFormOpen(false)}
         />
       ) : null}
     </main>
   )
 }
 
-type MemoryModalProps = {
-  memory: Memory
+type PlaceFormModalProps = {
+  onCreate: (input: {
+    name: string
+    memory: string
+    geocodingResult: GeocodingResult
+  }) => Promise<void>
   onClose: () => void
 }
 
-function MemoryModal({ memory, onClose }: MemoryModalProps) {
+function PlaceFormModal({ onCreate, onClose }: PlaceFormModalProps) {
+  const [name, setName] = useState('')
+  const [memory, setMemory] = useState('')
+  const [geocodingResults, setGeocodingResults] = useState<GeocodingResult[]>([])
+  const [error, setError] = useState('')
+  const [isSearching, setIsSearching] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+
+  async function handleSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError('')
+    setGeocodingResults([])
+    setIsSearching(true)
+
+    const geocodingUrl = new URL(GEOCODING_ENDPOINT)
+
+    geocodingUrl.searchParams.set('format', 'jsonv2')
+    geocodingUrl.searchParams.set('limit', '5')
+    geocodingUrl.searchParams.set('q', name.trim())
+
+    try {
+      const response = await fetch(geocodingUrl)
+
+      if (!response.ok) {
+        throw new Error('Could not search for that place.')
+      }
+
+      const results = (await response.json()) as GeocodingResult[]
+
+      if (results.length === 0) {
+        throw new Error('No matching places were found.')
+      }
+
+      setGeocodingResults(results)
+    } catch (searchError) {
+      setError(
+        searchError instanceof Error
+          ? searchError.message
+          : 'Could not search for that place.',
+      )
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  async function handleSelectPlace(geocodingResult: GeocodingResult) {
+    setError('')
+    setIsSaving(true)
+
+    try {
+      await onCreate({ name, memory, geocodingResult })
+      onClose()
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : 'Could not save that place.',
+      )
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <aside className="place-form-modal" aria-label="Add a place">
+      <form className="place-form" onSubmit={handleSearch}>
+        <header className="memory-header">
+          <div>
+            <h2>Add place</h2>
+            <p className="memory-description">Search, choose the match, and save it.</p>
+          </div>
+
+          <button className="memory-close" type="button" onClick={onClose}>
+            Close
+          </button>
+        </header>
+
+        <label className="place-field" htmlFor="place-name">
+          <span>City or place</span>
+          <input
+            id="place-name"
+            type="text"
+            value={name}
+            onChange={(event) => {
+              setName(event.target.value)
+              setGeocodingResults([])
+            }}
+            placeholder="Tokyo"
+            disabled={isSearching || isSaving}
+            required
+          />
+        </label>
+
+        <label className="place-field" htmlFor="place-memory">
+          <span>Memory</span>
+          <textarea
+            id="place-memory"
+            value={memory}
+            onChange={(event) => setMemory(event.target.value)}
+            placeholder="A small note from this place"
+            disabled={isSearching || isSaving}
+            required
+          />
+        </label>
+
+        {error ? <p className="place-form-error">{error}</p> : null}
+
+        <button
+          className="save-place-button"
+          type="submit"
+          disabled={isSearching || isSaving}
+        >
+          {isSearching ? 'Searching...' : 'Search places'}
+        </button>
+      </form>
+
+      {geocodingResults.length > 0 ? (
+        <div className="geocoding-results" aria-label="Place matches">
+          {geocodingResults.map((result) => (
+            <button
+              className="geocoding-result"
+              type="button"
+              key={result.place_id}
+              onClick={() => void handleSelectPlace(result)}
+              disabled={isSaving}
+            >
+              <span>{result.display_name}</span>
+              <small>
+                {Number(result.lat).toFixed(4)}, {Number(result.lon).toFixed(4)}
+              </small>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </aside>
+  )
+}
+
+type MemoryModalProps = {
+  memory: Memory
+  isDeleting: boolean
+  onClose: () => void
+  onDelete: () => void
+  onUpdateMemory: (description: string) => Promise<void>
+}
+
+function MemoryModal({
+  memory,
+  isDeleting,
+  onClose,
+  onDelete,
+  onUpdateMemory,
+}: MemoryModalProps) {
+  const [editedDescription, setEditedDescription] = useState(memory.description)
+  const [editError, setEditError] = useState('')
+  const [isEditing, setIsEditing] = useState(false)
+  const [isSavingEdit, setIsSavingEdit] = useState(false)
+
+  async function handleSaveEdit() {
+    setEditError('')
+    setIsSavingEdit(true)
+
+    try {
+      await onUpdateMemory(editedDescription)
+      setIsEditing(false)
+    } catch (error) {
+      setEditError(
+        error instanceof Error ? error.message : 'Could not update this memory.',
+      )
+    } finally {
+      setIsSavingEdit(false)
+    }
+  }
+
   return (
     <aside className="memory-modal" aria-label={`${memory.city} memories`}>
       <header className="memory-header">
         <div>
-          <p>Place memory</p>
           <h2>{memory.city}</h2>
         </div>
 
-        <button className="memory-close" type="button" onClick={onClose}>
-          Close
-        </button>
+        <div className="memory-actions">
+          {isEditing ? (
+            <>
+              <button
+                className="memory-close"
+                type="button"
+                onClick={() => {
+                  setEditedDescription(memory.description)
+                  setIsEditing(false)
+                  setEditError('')
+                }}
+                disabled={isSavingEdit}
+              >
+                Cancel
+              </button>
+
+              <button
+                className="save-memory-button"
+                type="button"
+                onClick={() => void handleSaveEdit()}
+                disabled={isSavingEdit}
+              >
+                {isSavingEdit ? 'Saving...' : 'Save'}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                className="memory-close"
+                type="button"
+                onClick={() => setIsEditing(true)}
+              >
+                Edit
+              </button>
+
+              <button
+                className="delete-place-button"
+                type="button"
+                onClick={onDelete}
+                disabled={isDeleting || isSavingEdit}
+              >
+                {isDeleting ? 'Deleting...' : 'Delete place'}
+              </button>
+
+              <button className="memory-close" type="button" onClick={onClose}>
+                Close
+              </button>
+            </>
+          )}
+        </div>
       </header>
 
-      <div className="polaroid-stack">
-        {memory.photos.map((photo, index) => (
-          <figure className="polaroid-card" key={`${memory.id}-${index}`}>
-            <img src={photo} alt={`${memory.city} memory`} />
-          </figure>
-        ))}
+      <div className="memory-note">
+        {isEditing ? (
+          <textarea
+            className="memory-edit-input"
+            value={editedDescription}
+            onChange={(event) => setEditedDescription(event.target.value)}
+            disabled={isSavingEdit}
+            aria-label="Memory description"
+          />
+        ) : (
+          <p className="memory-description">{memory.description}</p>
+        )}
+        {editError ? <p className="place-form-error">{editError}</p> : null}
       </div>
 
-      <div className="memory-copy">
-        <p>{memory.description}</p>
+      <div className="polaroid-stack">
+        {memory.photos.length > 0 ? (
+          memory.photos.map((photo, index) => (
+            <figure className="polaroid-card" key={`${memory.id}-${index}`}>
+              <img src={photo} alt={`${memory.city} memory`} />
+            </figure>
+          ))
+        ) : (
+          <p className="empty-place-photos">Photos can be added later.</p>
+        )}
       </div>
     </aside>
   )

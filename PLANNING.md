@@ -32,8 +32,8 @@ Implementation notes:
 Current planned order:
 
 1. Modify the login page with generic polaroid pictures.
-2. Add the pin/place creation feature.
-3. Add the picture upload feature for each place.
+2. Add the pin/place creation/deletion feature.
+3. Add the picture upload/delete feature for each place.
 4. Deploy.
 5. Use the deployed mobile version to add the real private pictures from our phones.
 
