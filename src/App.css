@@ -513,9 +513,47 @@
   overscroll-behavior: contain;
 }
 
+.place-form-modal:has(.place-saving-overlay) .place-form,
+.place-form-modal:has(.place-saving-overlay) .geocoding-results {
+  pointer-events: none;
+  opacity: 0.42;
+}
+
 .place-form {
   display: grid;
   gap: 18px;
+}
+
+.place-form-header {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.place-saving-overlay {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  align-content: center;
+  border-radius: inherit;
+  color: #fffaf0;
+  background: rgba(13, 12, 10, 0.58);
+  backdrop-filter: blur(8px);
+}
+
+.place-saving-overlay span {
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(255, 250, 240, 0.24);
+  border-top-color: #ffd84d;
+  border-radius: 999px;
+  animation: auth-spin 0.9s linear infinite;
+}
+
+.place-saving-overlay p {
+  font: 13px/1 var(--sans);
 }
 
 .memory-header {

@@ -728,19 +728,22 @@ function PlaceFormModal({ onCreate, onClose }: PlaceFormModalProps) {
 
   return (
     <aside className="place-form-modal" aria-label="Add a place">
-      <form className="place-form" onSubmit={handleSearch}>
-        <header className="memory-header">
-          <div>
-            <h2>Add place</h2>
-          </div>
+      {isSaving ? (
+        <div className="place-saving-overlay" role="status" aria-live="polite">
+          <span></span>
+          <p>Saving...</p>
+        </div>
+      ) : null}
 
+      <form className="place-form" onSubmit={handleSearch}>
+        <header className="place-form-header">
           <button className="memory-close" type="button" onClick={onClose}>
             Close
           </button>
         </header>
 
         <label className="place-field" htmlFor="place-name">
-          <span>City or place</span>
+          <span>City</span>
           <input
             id="place-name"
             type="text"
