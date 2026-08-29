@@ -513,8 +513,13 @@
   overscroll-behavior: contain;
 }
 
-.place-form-modal:has(.place-saving-overlay) .place-form,
-.place-form-modal:has(.place-saving-overlay) .geocoding-results {
+.place-form-modal:has(.saving-overlay) .place-form,
+.place-form-modal:has(.saving-overlay) .geocoding-results,
+.memory-modal:has(.saving-overlay) .memory-header,
+.memory-modal:has(.saving-overlay) .memory-note,
+.memory-modal:has(.saving-overlay) .picture-toolbar,
+.memory-modal:has(.saving-overlay) .place-form-error,
+.memory-modal:has(.saving-overlay) .polaroid-stack {
   pointer-events: none;
   opacity: 0.42;
 }
@@ -524,12 +529,14 @@
   gap: 18px;
 }
 
-.place-form-header {
-  display: flex;
-  justify-content: flex-end;
+.place-name-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
 }
 
-.place-saving-overlay {
+.saving-overlay {
   position: absolute;
   z-index: 2;
   inset: 0;
@@ -543,7 +550,7 @@
   backdrop-filter: blur(8px);
 }
 
-.place-saving-overlay span {
+.saving-overlay span {
   width: 28px;
   height: 28px;
   border: 1px solid rgba(255, 250, 240, 0.24);
@@ -552,7 +559,7 @@
   animation: auth-spin 0.9s linear infinite;
 }
 
-.place-saving-overlay p {
+.saving-overlay p {
   font: 13px/1 var(--sans);
 }
 

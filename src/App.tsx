@@ -11,6 +11,9 @@ const INITIAL_GLOBE_VIEW = { lat: -18, lng: 138, altitude: 2.15 }
 const GEOCODING_ENDPOINT = 'https://nominatim.openstreetmap.org/search'
 const STORAGE_BUCKET = 'Pictures'
 const PICTURE_URL_EXPIRES_IN_SECONDS = 60 * 60 * 24
+const PLACE_FOCUS_DURATION_MS = 1200
+const PLACE_REVEAL_PAUSE_MS = 700
+const PLACE_REVEAL_ALTITUDE = 0.3
 
 type CoupleId = string | number
 
@@ -89,6 +92,12 @@ function getStoragePath(coupleId: CoupleId, placeId: string, file: File) {
   const safeFileName = file.name.replace(/[^a-zA-Z0-9. -]/g, '-')
 
   return `couples/${coupleId}/places/${placeId}/${crypto.randomUUID()}-${safeFileName}`
+}
+
+function wait(durationMs: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, durationMs)
+  })
 }
 
 function clearSupabaseAuthStorage() {
@@ -183,12 +192,22 @@ function MissingSupabaseConfigPage() {
   )
 }
 
+function SavingOverlay({ label = 'Saving...' }: { label?: string }) {
+  return (
+    <div className="saving-overlay" role="status" aria-live="polite">
+      <span></span>
+      <p>{label}</p>
+    </div>
+  )
+}
+
 type MemoireAppProps = {
   onSignOut: () => void
 }
 
 function MemoireApp({ onSignOut }: MemoireAppProps) {
   const globeRef = useRef<GlobeMethods | undefined>(undefined)
+  const placeRevealIdRef = useRef(0)
   const [coupleId, setCoupleId] = useState<CoupleId | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [savedPlaces, setSavedPlaces] = useState<Memory[]>([])
@@ -343,6 +362,23 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
     }
   }, [])
 
+  async function revealMemoryAfterGlobeFocus(memory: Memory) {
+    const revealId = placeRevealIdRef.current + 1
+    placeRevealIdRef.current = revealId
+
+    setSelectedMemory(null)
+    globeRef.current?.pointOfView(
+      { lat: memory.lat, lng: memory.lng, altitude: PLACE_REVEAL_ALTITUDE },
+      PLACE_FOCUS_DURATION_MS,
+    )
+
+    await wait(PLACE_FOCUS_DURATION_MS + PLACE_REVEAL_PAUSE_MS)
+
+    if (placeRevealIdRef.current === revealId) {
+      setSelectedMemory(memory)
+    }
+  }
+
   async function handleCreatePlace(input: {
     name: string
     memory: string
@@ -382,11 +418,8 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
     const memoryWithPhotos = { ...newMemory, photos }
 
     setSavedPlaces((currentPlaces) => [...currentPlaces, memoryWithPhotos])
-    setSelectedMemory(memoryWithPhotos)
-    globeRef.current?.pointOfView(
-      { lat: memoryWithPhotos.lat, lng: memoryWithPhotos.lng, altitude: 1.7 },
-      900,
-    )
+    setIsPlaceFormOpen(false)
+    void revealMemoryAfterGlobeFocus(memoryWithPhotos)
   }
 
   async function uploadPlacePictures(placeId: string, files: File[]) {
@@ -540,12 +573,8 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
   }
 
   function handleSelectSearchedPlace(memory: Memory) {
-    setSelectedMemory(memory)
     setPlaceSearch('')
-    globeRef.current?.pointOfView(
-      { lat: memory.lat, lng: memory.lng, altitude: 1.7 },
-      900,
-    )
+    void revealMemoryAfterGlobeFocus(memory)
   }
 
   return (
@@ -728,35 +757,30 @@ function PlaceFormModal({ onCreate, onClose }: PlaceFormModalProps) {
 
   return (
     <aside className="place-form-modal" aria-label="Add a place">
-      {isSaving ? (
-        <div className="place-saving-overlay" role="status" aria-live="polite">
-          <span></span>
-          <p>Saving...</p>
-        </div>
-      ) : null}
+      {isSaving ? <SavingOverlay /> : null}
 
       <form className="place-form" onSubmit={handleSearch}>
-        <header className="place-form-header">
+        <div className="place-name-row">
+          <label className="place-field" htmlFor="place-name">
+            <span>City</span>
+            <input
+              id="place-name"
+              type="text"
+              value={name}
+              onChange={(event) => {
+                setName(event.target.value)
+                setGeocodingResults([])
+              }}
+              placeholder="Tokyo"
+              disabled={isSearching || isSaving}
+              required
+            />
+          </label>
+
           <button className="memory-close" type="button" onClick={onClose}>
             Close
           </button>
-        </header>
-
-        <label className="place-field" htmlFor="place-name">
-          <span>City</span>
-          <input
-            id="place-name"
-            type="text"
-            value={name}
-            onChange={(event) => {
-              setName(event.target.value)
-              setGeocodingResults([])
-            }}
-            placeholder="Tokyo"
-            disabled={isSearching || isSaving}
-            required
-          />
-        </label>
+        </div>
 
         <label className="place-field" htmlFor="place-memory">
           <span>Memory</span>
@@ -915,6 +939,10 @@ function MemoryModal({
 
   return (
     <aside className="memory-modal" aria-label={`${memory.city} memories`}>
+      {isSavingEdit || isDeleting ? (
+        <SavingOverlay label={isDeleting ? 'Deleting...' : 'Saving...'} />
+      ) : null}
+
       <header className="memory-header">
         <div>
           <h2>{memory.city}</h2>
