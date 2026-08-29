@@ -185,11 +185,11 @@
 .login-panel {
   position: relative;
   z-index: 2;
-  width: min(100%, 340px);
+  width: min(100%, 320px);
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 32px 26px 28px;
+  gap: 16px;
+  padding: 28px 24px 24px;
   border: 1px solid rgba(84, 74, 61, 0.12);
   border-radius: 22px;
   background: rgba(255, 253, 248, 0.78);
@@ -223,7 +223,7 @@
 .login-heading h1 {
   margin: 0;
   font-family: Georgia, 'Times New Roman', serif;
-  font-size: 48px;
+  font-size: 40px;
   line-height: 1;
   letter-spacing: 0;
   color: var(--memoire-ink);
@@ -231,7 +231,7 @@
 
 .login-heading p:not(.login-mark) {
   color: var(--memoire-muted);
-  font-size: 15px;
+  font-size: 13px;
 }
 
 .login-field {
@@ -280,13 +280,13 @@
 }
 
 .enter-button {
-  min-height: 50px;
+  min-height: 46px;
   border: 0;
   border-radius: 999px;
   color: #fffaf0;
   background: var(--memoire-ink);
   font: inherit;
-  font-size: 15px;
+  font-size: 14px;
   cursor: pointer;
   transition:
     transform 0.2s ease,
@@ -955,18 +955,18 @@
   }
 
   .login-panel {
-    width: min(100%, 240px);
-    padding: 16px 12px 14px;
+    width: min(100%, 224px);
+    padding: 14px 12px 12px;
     border-radius: 12px;
-    gap: 9px;
+    gap: 8px;
   }
 
   .login-heading h1 {
-    font-size: 30px;
+    font-size: 26px;
   }
 
   .login-heading p:not(.login-mark) {
-    font-size: 12px;
+    font-size: 11px;
   }
 
   .login-field {
@@ -984,7 +984,7 @@
   }
 
   .enter-button {
-    min-height: 40px;
+    min-height: 38px;
   }
 
   .logout-button {
