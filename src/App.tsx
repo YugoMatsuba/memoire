@@ -639,6 +639,11 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
         backgroundImageUrl="//unpkg.com/three-globe/example/img/night-sky.png"
         onGlobeReady={() => {
           globeRef.current?.pointOfView(INITIAL_GLOBE_VIEW, 0)
+          const controls = globeRef.current?.controls()
+
+          if (controls) {
+            controls.enablePan = false
+          }
         }}
         pointsData={savedPlaces}
         pointLat="lat"
