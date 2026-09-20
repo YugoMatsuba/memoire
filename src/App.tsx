@@ -13,7 +13,7 @@ const STORAGE_BUCKET = 'Pictures'
 const PICTURE_URL_EXPIRES_IN_SECONDS = 60 * 60 * 24
 const PLACE_FOCUS_DURATION_MS = 1200
 const PLACE_REVEAL_PAUSE_MS = 700
-const PLACE_REVEAL_ALTITUDE = 0.3
+const PLACE_REVEAL_ALTITUDE = 0.45
 
 type CoupleId = string | number
 
