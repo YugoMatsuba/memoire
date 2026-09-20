@@ -460,11 +460,9 @@
 }
 
 .globe-page {
-  position: fixed;
-  inset: 0;
+  position: relative;
   width: 100vw;
-  height: 100dvh;
-  min-height: 100svh;
+  height: 100svh;
   overflow: hidden;
   background: #02040a;
 }
@@ -1061,8 +1059,11 @@
   .memory-modal {
     width: calc(100vw - 32px);
     top: max(16px, env(safe-area-inset-top));
-    bottom: max(16px, env(safe-area-inset-bottom));
-    max-height: none;
+    max-height: calc(100svh - 32px);
+    max-height: calc(
+      100dvh - max(16px, env(safe-area-inset-top)) -
+        max(16px, env(safe-area-inset-bottom))
+    );
     padding: 16px;
     transform: translateX(-50%);
     -webkit-overflow-scrolling: touch;
