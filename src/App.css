@@ -1054,6 +1054,7 @@
 
   .place-search-field input {
     min-height: 34px;
+    font-size: 16px;
   }
 
   .memory-modal {
@@ -1072,7 +1073,19 @@
   .place-form-modal {
     width: calc(100vw - 32px);
     max-height: calc(100svh - 32px);
+    max-height: calc(
+      100dvh - max(16px, env(safe-area-inset-top)) -
+        max(16px, env(safe-area-inset-bottom))
+    );
     padding: 16px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .login-field input,
+  .place-field input,
+  .place-field textarea,
+  .memory-edit-input {
+    font-size: 16px;
   }
 
   .memory-header h2 {
