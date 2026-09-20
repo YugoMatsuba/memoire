@@ -11,6 +11,9 @@ const INITIAL_GLOBE_VIEW = { lat: -18, lng: 138, altitude: 2.15 }
 const GEOCODING_ENDPOINT = 'https://nominatim.openstreetmap.org/search'
 const STORAGE_BUCKET = 'Pictures'
 const PICTURE_URL_EXPIRES_IN_SECONDS = 60 * 60 * 24
+const PLACE_FOCUS_DURATION_MS = 1200
+const PLACE_REVEAL_PAUSE_MS = 700
+const PLACE_REVEAL_ALTITUDE = 0.45
 
 type CoupleId = string | number
 
@@ -89,6 +92,12 @@ function getStoragePath(coupleId: CoupleId, placeId: string, file: File) {
   const safeFileName = file.name.replace(/[^a-zA-Z0-9. -]/g, '-')
 
   return `couples/${coupleId}/places/${placeId}/${crypto.randomUUID()}-${safeFileName}`
+}
+
+function wait(durationMs: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, durationMs)
+  })
 }
 
 function clearSupabaseAuthStorage() {
@@ -198,6 +207,7 @@ type MemoireAppProps = {
 
 function MemoireApp({ onSignOut }: MemoireAppProps) {
   const globeRef = useRef<GlobeMethods | undefined>(undefined)
+  const placeRevealIdRef = useRef(0)
   const [coupleId, setCoupleId] = useState<CoupleId | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [savedPlaces, setSavedPlaces] = useState<Memory[]>([])
@@ -352,6 +362,23 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
     }
   }, [])
 
+  async function revealMemoryAfterGlobeFocus(memory: Memory) {
+    const revealId = placeRevealIdRef.current + 1
+    placeRevealIdRef.current = revealId
+
+    setSelectedMemory(null)
+    globeRef.current?.pointOfView(
+      { lat: memory.lat, lng: memory.lng, altitude: PLACE_REVEAL_ALTITUDE },
+      PLACE_FOCUS_DURATION_MS,
+    )
+
+    await wait(PLACE_FOCUS_DURATION_MS + PLACE_REVEAL_PAUSE_MS)
+
+    if (placeRevealIdRef.current === revealId) {
+      setSelectedMemory(memory)
+    }
+  }
+
   async function handleCreatePlace(input: {
     name: string
     memory: string
@@ -392,7 +419,7 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
 
     setSavedPlaces((currentPlaces) => [...currentPlaces, memoryWithPhotos])
     setIsPlaceFormOpen(false)
-    setSelectedMemory(memoryWithPhotos)
+    void revealMemoryAfterGlobeFocus(memoryWithPhotos)
   }
 
   async function uploadPlacePictures(placeId: string, files: File[]) {
@@ -547,17 +574,20 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
 
   function handleSelectSearchedPlace(memory: Memory) {
     setPlaceSearch('')
-    setSelectedMemory(memory)
+    void revealMemoryAfterGlobeFocus(memory)
   }
 
   return (
     <main className="globe-page">
-      {!selectedMemory && !isPlaceFormOpen ? (
+      {!isPlaceFormOpen ? (
         <div className="place-toolbar">
           <button
             className="add-place-button"
             type="button"
-            onClick={() => setIsPlaceFormOpen(true)}
+            onClick={() => {
+              setSelectedMemory(null)
+              setIsPlaceFormOpen(true)
+            }}
           >
             Add place
           </button>

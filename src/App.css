@@ -1059,11 +1059,11 @@
 
   .memory-modal {
     width: calc(100vw - 32px);
-    top: max(16px, env(safe-area-inset-top));
-    max-height: calc(100svh - 32px);
+    top: calc(max(18px, env(safe-area-inset-top)) + 54px);
+    max-height: calc(100svh - 88px);
     max-height: calc(
-      100dvh - max(16px, env(safe-area-inset-top)) -
-        max(16px, env(safe-area-inset-bottom))
+      100dvh - max(18px, env(safe-area-inset-top)) -
+        max(16px, env(safe-area-inset-bottom)) - 54px
     );
     padding: 16px;
     transform: translateX(-50%);
