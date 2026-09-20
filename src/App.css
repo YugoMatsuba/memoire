@@ -460,9 +460,11 @@
 }
 
 .globe-page {
-  position: relative;
+  position: fixed;
+  inset: 0;
   width: 100vw;
-  height: 100svh;
+  height: 100dvh;
+  min-height: 100svh;
   overflow: hidden;
   background: #02040a;
 }

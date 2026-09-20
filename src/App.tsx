@@ -100,6 +100,15 @@ function wait(durationMs: number) {
   })
 }
 
+function getViewportSize() {
+  const visualViewport = window.visualViewport
+
+  return {
+    width: Math.round(visualViewport?.width ?? window.innerWidth),
+    height: Math.round(visualViewport?.height ?? window.innerHeight),
+  }
+}
+
 function clearSupabaseAuthStorage() {
   try {
     const storageKeys = Object.keys(localStorage).filter(
@@ -218,10 +227,7 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [placeError, setPlaceError] = useState('')
   const [isLoadingPlaces, setIsLoadingPlaces] = useState(true)
-  const [viewport, setViewport] = useState({
-    width: window.innerWidth,
-    height: window.innerHeight,
-  })
+  const [viewport, setViewport] = useState(getViewportSize)
   const trimmedPlaceSearch = placeSearch.trim().toLowerCase()
   const matchingPlaces =
     trimmedPlaceSearch.length > 0
@@ -349,16 +355,18 @@ function MemoireApp({ onSignOut }: MemoireAppProps) {
 
   useEffect(() => {
     function handleResize() {
-      setViewport({
-        width: window.innerWidth,
-        height: window.innerHeight,
-      })
+      setViewport(getViewportSize())
     }
 
     window.addEventListener('resize', handleResize)
+    window.visualViewport?.addEventListener('resize', handleResize)
+    window.visualViewport?.addEventListener('scroll', handleResize)
+    handleResize()
 
     return () => {
       window.removeEventListener('resize', handleResize)
+      window.visualViewport?.removeEventListener('resize', handleResize)
+      window.visualViewport?.removeEventListener('scroll', handleResize)
     }
   }, [])
 
